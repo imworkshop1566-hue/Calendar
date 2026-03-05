@@ -1,13 +1,11 @@
-export const config = { runtime: "edge" }
+import { createCanvas } from "@napi-rs/canvas"
 
-export default async function handler(req) {
+export default function handler(req, res) {
 
-const { searchParams } = new URL(req.url)
+const width = parseInt(req.query.width || 1290)
+const height = parseInt(req.query.height || 2796)
 
-const width = Number(searchParams.get("width") || 1290)
-const height = Number(searchParams.get("height") || 2796)
-
-const canvas = new OffscreenCanvas(width,height)
+const canvas = createCanvas(width,height)
 const ctx = canvas.getContext("2d")
 
 ctx.fillStyle="#0f0f0f"
@@ -16,8 +14,15 @@ ctx.fillRect(0,0,width,height)
 const today=new Date()
 const year=today.getFullYear()
 
+const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+
+const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
+const same=(a,b)=>a.toDateString()==b.toDateString()
+const leap=y=>(y%4==0&&y%100!=0)||y%400==0
+const doy=d=>Math.floor((d-new Date(d.getFullYear(),0,0))/86400000)
+
 const holidaySet=new Set([
-"2026-01-02",
+  "2026-01-02",
 "2026-01-03",
 "2026-01-04",
 "2026-01-10",
@@ -141,14 +146,7 @@ const holidaySet=new Set([
 "2026-12-29",
 "2026-12-30",
 "2026-12-31"
-])
-
-const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
-const same=(a,b)=>a.toDateString()==b.toDateString()
-const leap=y=>(y%4==0&&y%100!=0)||y%400==0
-const doy=d=>Math.floor((d-new Date(d.getFullYear(),0,0))/86400000)
-
-const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+]) // ใส่ holiday ของคุณได้
 
 const cols=3,rows=4
 const gap=30,r=10
@@ -167,7 +165,8 @@ ctx.font="32px sans-serif"
 
 for(let m=0;m<12;m++){
 
-let col=m%cols,row=Math.floor(m/cols)
+let col=m%cols
+let row=Math.floor(m/cols)
 
 let mx=startX+col*monthX
 let my=startY+row*monthY
@@ -215,11 +214,7 @@ ctx.font="40px sans-serif"
 
 ctx.fillText(`${left}d · ${percent}%`,width/2,startY+gridH+110)
 
-const blob=await canvas.convertToBlob()
-const buffer=await blob.arrayBuffer()
-
-return new Response(buffer,{
-headers:{ "Content-Type":"image/png" }
-})
+res.setHeader("Content-Type","image/png")
+res.send(canvas.toBuffer("image/png"))
 
 }
