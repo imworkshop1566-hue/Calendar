@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+<style>
+* { box-sizing: border-box; }
+* {
+    caret-color: transparent;
+}
+
+body {
+    margin: 0;
+    font-family: 'Kanit', sans-serif;
+    background: #0b0f14; /* charcoal black */
+    color: #cbd5e1;
+}
+
+/* Grid */
+.card-grid {
+    display: grid;
+    gap: 28px;
+    padding: 28px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+/* Card */
+.device-card {
+    background: #141a21; /* slate dark */
+    border: 1px solid #1f2933;
+    border-radius: 16px;
+    padding: 28px;
+    min-height: 220px;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+
+    transition: all 0.25s ease;
+}
+
+.device-card:hover {
+    border-color: #00d4ff;
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+}
+
+/* Offline */
+.device-card.offline {
+    background: #1a1f26;
+    border-color: #2a323c;
+    opacity: 0.5;
+}
+
+/* Name */
+.jig-name {
+    font-weight: 600;
+    color: #00d4ff; /* engineer cyan */
+    margin-bottom: 20px;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+}
+
+/* Input - main focus */
+.input-row {
+    margin-bottom: 12px;
+}
+
+.input-value {
+    font-size: 38px;
+    font-weight: 700;
+    color: #00f0ff; /* neon cyan */
+    letter-spacing: 1px;
+}
+
+/* Total */
+.total-row {
+    font-size: 18px;
+    color: #94a3b8;
+}
+
+/* Timestamp */
+.last-update {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 16px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0b0f14;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #1f2933;
+    border-radius: 8px;
+}
+</style>
+</head>
+<body>
+
+<div class="card-grid" id="cardContainer"></div>
+
+<script>
+const apiUrl = "https://opensheet.elk.sh/1FhLvkCQ2o6ZdRAkx6vjysY9LwC3nQ3EETil7YlKqYlA/DeviceStatus";
+
+let cardMap = new Map();
+
+/* ---------- Auto Scale Text ---------- */
+function autoScaleText(element, maxSize = 28, minSize = 14) {
+    let fontSize = maxSize;
+    element.style.fontSize = fontSize + "px";
+
+    while (element.scrollWidth > element.offsetWidth && fontSize > minSize) {
+        fontSize--;
+        element.style.fontSize = fontSize + "px";
+    }
+}
+
+/* ---------- Resize Observer ---------- */
+const resizeObserver = new ResizeObserver(entries => {
+    for (let entry of entries) {
+        const nameEl = entry.target.querySelector(".jig-name");
+        if (nameEl) {
+            autoScaleText(nameEl, 28, 14);
+        }
+    }
+});
+
+/* ---------- Offline Logic ---------- */
+function isOffline(timestamp) {
+    const now = new Date();
+    const last = new Date(timestamp);
+    const diffMinutes = (now - last) / 1000 / 60;
+    return diffMinutes > 20;
+}
+
+/* ---------- Load Data ---------- */
+async function loadData() {
+    const container = document.getElementById("cardContainer");
+
+    try {
+        const response = await fetch(apiUrl);
+        const data = await response.json();
+
+        // Sort by Input desc
+        data.sort((a, b) => {
+            const diff = Number(b.count1) - Number(a.count1);
+            if (diff !== 0) return diff;
+            return new Date(b.Timestamp) - new Date(a.Timestamp);
+        });
+
+        data.forEach(item => {
+            const id = item.device_id;
+            const input = item.count1;
+            const total = item.count2;
+            const timestamp = item.Timestamp;
+
+            let card = cardMap.get(id);
+
+            if (!card) {
+                card = document.createElement("div");
+                card.className = "device-card";
+                card.innerHTML = `
+                    <div class="jig-name"></div>
+                    <div>
+                        <div class="input-row">
+                            <span class="input-value"></span>
+                        </div>
+                        <div class="total-row"></div>
+                        <div class="last-update"></div>
+                    </div>
+                `;
+
+                container.appendChild(card);
+                cardMap.set(id, card);
+                resizeObserver.observe(card);
+            }
+
+            const nameEl = card.querySelector(".jig-name");
+            nameEl.textContent = id;
+
+            card.querySelector(".input-value").textContent = input;
+            card.querySelector(".total-row").textContent = "Total: " + total;
+            card.querySelector(".last-update").textContent = "Last update: " + timestamp;
+
+            // Offline state
+            if (isOffline(timestamp)) {
+                card.classList.add("offline");
+            } else {
+                card.classList.remove("offline");
+            }
+        });
+
+        // Reorder DOM without clearing
+        data.forEach(item => {
+            container.appendChild(cardMap.get(item.device_id));
+        });
+
+    } catch (error) {
+        console.error(error);
+        container.innerHTML = "Error loading data";
+    }
+}
+
+loadData();
+setInterval(loadData, 30000);
+</script>
+
+</body>
+</html>
