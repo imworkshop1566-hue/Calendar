@@ -1,21 +1,21 @@
-import { createCanvas } from "canvas"
+export const config = { runtime: "edge" }
 
-export default async function handler(req, res) {
+export default async function handler(req) {
 
-const width = parseInt(req.query.width) || 1290
-const height = parseInt(req.query.height) || 2796
+const { searchParams } = new URL(req.url)
 
-const canvas = createCanvas(width, height)
+const width = Number(searchParams.get("width") || 1290)
+const height = Number(searchParams.get("height") || 2796)
+
+const canvas = new OffscreenCanvas(width,height)
 const ctx = canvas.getContext("2d")
 
-// background
 ctx.fillStyle="#0f0f0f"
 ctx.fillRect(0,0,width,height)
 
 const today=new Date()
 const year=today.getFullYear()
 
-// holidays
 const holidaySet=new Set([
 "2026-01-02",
 "2026-01-03",
@@ -143,19 +143,15 @@ const holidaySet=new Set([
 "2026-12-31"
 ])
 
-// helpers
 const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`
 const same=(a,b)=>a.toDateString()==b.toDateString()
 const leap=y=>(y%4==0&&y%100!=0)||y%400==0
 const doy=d=>Math.floor((d-new Date(d.getFullYear(),0,0))/86400000)
 
-// layout
 const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 
-const cols=3
-const rows=4
-const gap=30
-const r=10
+const cols=3,rows=4
+const gap=30,r=10
 
 const gridH=1200
 const monthW=gap*(7+2)
@@ -169,11 +165,9 @@ const monthY=gridH/rows
 
 ctx.font="32px sans-serif"
 
-// draw months
 for(let m=0;m<12;m++){
 
-let col=m%cols
-let row=Math.floor(m/cols)
+let col=m%cols,row=Math.floor(m/cols)
 
 let mx=startX+col*monthX
 let my=startY+row*monthY
@@ -209,7 +203,6 @@ ctx.fill()
 }
 }
 
-// progress
 const d=doy(today)
 const total=leap(year)?366:365
 const left=total-d
@@ -222,8 +215,11 @@ ctx.font="40px sans-serif"
 
 ctx.fillText(`${left}d · ${percent}%`,width/2,startY+gridH+110)
 
-// output
-res.setHeader("Content-Type","image/png")
-res.send(canvas.toBuffer())
+const blob=await canvas.convertToBlob()
+const buffer=await blob.arrayBuffer()
+
+return new Response(buffer,{
+headers:{ "Content-Type":"image/png" }
+})
 
 }
